@@ -12,7 +12,7 @@
       "frequency": 1
     },
     "repeat": {
-      "frames": [4,5,6,],
+      "frames": [4,5,6],
       "next": "repeat",
       "frequency": 6
     },
