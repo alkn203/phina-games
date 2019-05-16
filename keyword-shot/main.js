@@ -1,9 +1,12 @@
 // グローバルに展開
 phina.globalize();
 // 定数
-var SCREEN_WIDTH = 800; 
-var SCREEN_HEIGHT = 600; 
-var FONT_SIZE = 64;
+var SCREEN_WIDTH = 16 * 40; 
+var SCREEN_HEIGHT = 9 * 40; 
+var KEYWORD_SIZE = SCREEN_HEIGHT / 12;
+var KEYWORD_SPEED_X = 6;
+var KEYWORD_SPEED_Y = -10;
+var GRAVITY = 0.2;
 var COLORS = ['rgb(249,38,114)', 'rgb(166,226,46)', 'rgb(253,151,31)', 'rgb(102,217,239)'];
 var BG_COLOR = 'rgb(39,40,34)';
 var KEYWORDS = null;
@@ -12,12 +15,12 @@ var INTERVAL = 1000;
 var ASSETS = {
   // キーワード一覧
   text: {
-    'keywords': 'https://rawgit.com/alkn203/phina-games/master/keyword-shot/assets/keywords',
+    'keywords': 'https://cdn.jsdelivr.net/gh/alkn203/phina-games@master/keyword-shot/assets/keywords',
   },
 };
 /*
-* タイトルシーン上書き
-*/
+ * タイトルシーン上書き
+ */
 phina.define('TitleScene', {
   // 継承
   superClass: 'DisplayScene',
@@ -30,9 +33,8 @@ phina.define('TitleScene', {
     
     this.backgroundColor = BG_COLOR;
     var fontColor = 'rgb(255,255,255)';
-    var fontSize = 48;
     var buttonSize = 168;
-    
+
     this.fromJSON({
       children: {
         titleText: {
@@ -41,43 +43,43 @@ phina.define('TitleScene', {
             text: 'Keyword Shot',
             fill: 'rgb(166,226,46)',
             stroke: null,
-            fontSize: 90,
+            fontSize: SCREEN_HEIGHT / 6,
           },
           x: this.gridX.center(),
           y: this.gridY.span(5),
         },
-        
+
         subtitleText: {
           className: 'Label',
           arguments: {
             text: 'Just type the keywords',
             fill: 'rgb(253,151,31)',
             stroke: null,
-            fontSize: fontSize,
+            fontSize: SCREEN_HEIGHT / 12,
           },
           x: this.gridX.center(),
           y: this.gridY.center(),
         },
-        
+
         explainText: {
           className: 'Label',
           arguments: {
             text: 'case-insensitive',
             fill: 'rgb(253,151,31)',
             stroke: null,
-            fontSize: fontSize,
+            fontSize: SCREEN_HEIGHT / 12,
           },
           x: this.gridX.center(),
           y: this.gridY.center(2),
         },
-        
+
         startText: {
           className: 'Label',
           arguments: {
             text: 'Click to start',
             fill: 'rgb(102,217,239)',
             stroke: null,
-            fontSize: fontSize,
+            fontSize: SCREEN_HEIGHT / 10,
           },
           x: this.gridX.center(),
           y: this.gridY.center(5),
@@ -104,8 +106,8 @@ phina.define('TitleScene', {
   },
 });
 /*
-* 自作カウントシーン
-*/
+ * 自作カウントシーン
+ */
 phina.define('CountScene', {
   // 継承
   superClass: 'DisplayScene',
@@ -118,19 +120,18 @@ phina.define('CountScene', {
     
     this.backgroundColor = 'rgba(128, 128, 128, 0.5)';
     var fontColor = 'rgb(255, 255, 255)';
-    var fontSizeMax = 120;
     this.counter = 3;
     // レベル
     var label = Label({
       text:'LEVEL ' + level,
       fill: fontColor,
-      fontSize: 60,
+      fontSize: SCREEN_HEIGHT / 8,
     }).addChildTo(this).setPosition(this.gridX.center(), this.gridY.center(-4));
     // カウント数字
     this.countLabel = Label({
       text:'',
       fill: fontColor,
-      fontSize: fontSizeMax,
+      fontSize: SCREEN_HEIGHT / 4,
     }).addChildTo(this).setPosition(this.gridX.center(), this.gridY.center());
     //
     this.countDown(this.counter);
@@ -152,11 +153,11 @@ phina.define('CountScene', {
                              self.counter--;
                              self.countDown(self.counter);
                            });
-  },
+  }
 });
 /*
-* メインシーン
-*/
+ * メインシーン
+ */
 phina.define("MainScene", {
   // 継承
   superClass: 'DisplayScene',
@@ -199,8 +200,13 @@ phina.define("MainScene", {
   createKeyword: function() {
     // キーワード作成
     var keyword = Keyword(KEYWORDS[this.keyIndex]).addChildTo(this.keywordGroup);
+    // 位置
     keyword.right = 0;
     keyword.y = this.gridY.span(13);
+    // 速度
+    keyword.physical.force(KEYWORD_SPEED_X, KEYWORD_SPEED_Y);
+    // 重力
+    keyword.physical.setGravity(0, GRAVITY);
     // 発射エフェクト
     Wave().addChildTo(this).setPosition(0, keyword.y);
   },
@@ -228,7 +234,7 @@ phina.define("MainScene", {
     var buffer = this.buffer.toLowerCase();
     var count = 0;
     var self = this;
-    
+
     this.keywordGroup.children.each(function(keyword) {
       var str = keyword.text.toLowerCase();
       // 指定した文字で始まるか
@@ -262,24 +268,24 @@ phina.define("MainScene", {
     // インデックス更新
     this.keyIndex++;
     // 削除アニメーション
-    keyword.tweener.set({stroke: 'lime', cornerRadius: 16,})
+    keyword.tweener.set({stroke: 'lime', cornerRadius: KEYWORD_SIZE / 8,})
                    .fadeOut(500)
                    .wait(INTERVAL)
                    .call(function() {
-                     keyword.remove();
-                     // コンプリート
-                     if (self.keyIndex === KEYWORDS.lengh - 1) {
-                       self.showResult();
-                       return;
-                     }
-                     // 文字数が変わったらレベルアップ
-                     if (self.level < KEYWORDS[self.keyIndex].length) {
-                       self.levelup();
-                       return;
-                     }
-                     // 次のキーワード作成
-                     self.createKeyword();
-                   }).play();
+                      keyword.remove();
+                      // コンプリート
+                      if (self.keyIndex === KEYWORDS.lengh - 1) {
+                        self.showResult();
+                        return;
+                      }
+                      // 文字数が変わったらレベルアップ
+                      if (self.level < KEYWORDS[self.keyIndex].length) {
+                        self.levelup();
+                        return;
+                      }
+                      // 次のキーワード作成
+                      self.createKeyword();
+                    }).play();
   },
   // レベルアップ処理
   levelup: function() {
@@ -291,14 +297,14 @@ phina.define("MainScene", {
     // リザルトシーンへ
     this.app.replaceScene(ResultScene({
       level: this.level,
-      total: KEYWORDS.length,
       score: this.score,
+      total: KEYWORDS.length,
     }));      
   },
 });
 /*
-* リザルトシーンを上書き
-*/
+ * リザルトシーン上書き
+ */
 phina.define('ResultScene', {
   // 継承
   superClass: 'DisplayScene',
@@ -311,10 +317,10 @@ phina.define('ResultScene', {
     
     this.backgroundColor = BG_COLOR;
     var fontColor = 'rgb(255,255,255)';
-    var fontSize = 48;
-    var buttonSize = 168;
-    var cornerRadius = 64;
-    
+    var fontSize = SCREEN_HEIGHT / 10;
+    var buttonSize = SCREEN_HEIGHT / 4;
+    var cornerRadius = buttonSize / 4;
+
     this.fromJSON({
       children: {
         levelText: {
@@ -338,7 +344,7 @@ phina.define('ResultScene', {
             fontSize: fontSize,
           },
           x: this.gridX.center(),
-          y: this.gridY.span(4),
+          y: this.gridY.span(4.5),
         },
         // スコア表示
         scoreText: {
@@ -350,9 +356,9 @@ phina.define('ResultScene', {
             fontSize: fontSize,
           },
           x: this.gridX.center(),
-          y: this.gridY.span(6),
+          y: this.gridY.span(7),
         },
-        
+
         shareButton: {
           className: 'Button',
           arguments: [{
@@ -360,52 +366,52 @@ phina.define('ResultScene', {
             width: buttonSize,
             height: buttonSize,
             fontColor: fontColor,
-            fontSize: fontSize,
+            fontSize: buttonSize / 4,
             cornerRadius: cornerRadius,
-            fill: 'rgb(102,217,239)',
-          }],
-          x: this.gridX.center(-3),
-          y: this.gridY.span(12),
-        },
-        
-        playButton: {
-          className: 'Button',
-          arguments: [{
-            text: 'Retry',
-            width: buttonSize,
-            height: buttonSize,
-            fontColor: fontColor,
-            fontSize: fontSize,
-            cornerRadius: cornerRadius,
-            fill: 'rgb(253,151,31)',
-          }],
-          x: this.gridX.center(3),
-          y: this.gridY.span(12),
-          
-          interactive: true,
-          // 押された時
-          onpush: function() {
-            // メインシーンへ
-            this.app.replaceScene(MainScene());
-          }.bind(this),
+              fill: 'rgb(102,217,239)',
+            }],
+            x: this.gridX.center(-2),
+            y: this.gridY.span(12),
+          },
+
+          playButton: {
+            className: 'Button',
+            arguments: [{
+              text: 'Retry',
+              width: buttonSize,
+              height: buttonSize,
+              fontColor: fontColor,
+              fontSize: buttonSize / 4,
+              cornerRadius: cornerRadius,
+              fill: 'rgb(253,151,31)',
+            }],
+            x: this.gridX.center(2),
+            y: this.gridY.span(12),
+
+            interactive: true,
+            // 押された時
+            onpush: function() {
+              // メインシーンへ
+              this.app.replaceScene(MainScene());
+            }.bind(this),
+          }
         }
-      }
-    });
-    // ツイートボタンが押された時      
-    this.shareButton.onclick = function() {
-      var text = 'shot keywords {0} / {1}'.format(params.score, params.total);
-      var url = phina.social.Twitter.createURL({
-        text: text,
-        hashtags: 'phina_js,game,keyword_shot',
-        url: params.url,
       });
-      window.open(url, 'share window', 'width=480, height=320');
-    };
-  },
-});
+      // ツイートボタンが押された時      
+      this.shareButton.onclick = function() {
+        var text = 'shot keywords {0} / {1}'.format(params.score, params.total);
+        var url = phina.social.Twitter.createURL({
+          text: text,
+          hashtags: 'phina_js,game,keyword_shot',
+          url: 'https://alkn203.github.io/phina-games/keyword-shot/',
+        });
+        window.open(url, 'share window', 'width=480, height=320');
+      };
+    },
+  });
 /*
-* キーワードクラス
-*/
+ * キーワードクラス
+ */
 phina.define("Keyword", {
   // 継承
   superClass: 'RectangleShape',
@@ -422,14 +428,11 @@ phina.define("Keyword", {
     var label = Label({
       text: this.text,
       fill: COLORS.random(),
-      fontSize: FONT_SIZE,
+      fontSize: KEYWORD_SIZE,
     }).addChildTo(this);
     // 実際のサイズ算出
     this.width = label.calcCanvasWidth();
     this.height = label.calcCanvasHeight();
-    
-    this.physical.force(10, -14);
-    this.physical.setGravity(0, 0.3);
   },
   // マスクをかける
   setMask: function(length) {
@@ -439,14 +442,14 @@ phina.define("Keyword", {
     var mask = RectangleShape({
       fill: 'silver',
       stroke: null,
-      cornerRadius: 16,
+      cornerRadius: KEYWORD_SIZE / 8,
     }).addChildTo(this);
     // 透明度
     mask.alpha = 0.4;
     // 部分文字のラベル
     var label = Label({
       text: this.text.substr(0, length),
-      fontSize: FONT_SIZE,
+      fontSize: KEYWORD_SIZE,
       fill: null,
     }).addChildTo(this);
     // 実際のサイズ算出
@@ -463,15 +466,14 @@ phina.define("Keyword", {
   },
 });
 /*
-* メイン処理
-*/
+ * メイン処理
+ */
 phina.main(function() {
   // アプリケーションを生成
   var app = GameApp({
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
     assets: ASSETS,
-    fit: false,
   });
   // 実行
   app.run();
