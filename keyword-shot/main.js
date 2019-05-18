@@ -519,7 +519,7 @@ phina.main(function() {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
     assets: ASSETS,
-    //fit: false,
+    fit: false,
   });
   // 実行
   app.run();
