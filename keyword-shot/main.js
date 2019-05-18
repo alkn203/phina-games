@@ -11,6 +11,7 @@ var COLORS = ['rgb(249,38,114)', 'rgb(166,226,46)', 'rgb(253,151,31)', 'rgb(102,
 var BG_COLOR = 'rgb(39,40,34)';
 var KEYWORDS = null;
 var INTERVAL = 1000;
+var CONTINUE = 3;
 // アセット
 var ASSETS = {
   // キーワード一覧
@@ -19,7 +20,7 @@ var ASSETS = {
   },
 };
 /*
- * タイトルシーン上書き
+ * タイトルシーン
  */
 phina.define('TitleScene', {
   // 継承
@@ -181,6 +182,16 @@ phina.define("MainScene", {
     this.level = 1;
     // スコア 
     this.score = 0;
+    // ライフ
+    this.life = 1;
+    // ライフ表示
+    this.lifeLabel = Label({
+      text: 'LIFE: {0}'.format(this.life),
+      fill: 'white',
+      fontSize: KEYWORD_SIZE * 2 / 3, 
+    }).addChildTo(this).setPosition(this.gridX.span(14), this.gridY.span(1));
+    // ライフ非表示
+    this.lifeLabel.hide();
   },
   // シーンに入ったら
   onenter: function() {
@@ -189,6 +200,9 @@ phina.define("MainScene", {
   },
   // シーンに復帰した時
   onresume:function() {
+    // ライフ表示
+    this.lifeLabel.show();
+    // キーワード作成
     this.createKeyword();
   },
   // 毎フレーム更新処理
@@ -217,10 +231,24 @@ phina.define("MainScene", {
     this.keywordGroup.children.each(function(keyword) {
       // 画面下に着いたら
       if (keyword.bottom > self.gridY.width) {
-        // 結果表示
-        self.showResult();
+        keyword.remove();
+        // ミス処理
+        self.loseLife();
       }
     });
+  },
+  // ミス処理
+  loseLife: function() {
+    this.life--;
+    this.lifeLabel.text = 'LIFE: {0}'.format(this.life);
+    // ライフ0
+    if (this.life === 0) {
+      this.showResult();  
+    }
+    else {
+      this.lifeLabel.hide();
+      this.app.pushScene(CountScene(this.level));
+    }
   },
   // キー入力時処理
   onkeydown: function(e) {
@@ -290,7 +318,24 @@ phina.define("MainScene", {
   // レベルアップ処理
   levelup: function() {
     this.level++;
+    //
+    this.setLife(this.level);
+    // ライフ非表示
+    this.lifeLabel.hide();
+
     this.app.pushScene(CountScene(this.level));
+  },
+  // ライフ値セット
+  setLife: function(level) {
+    var count = 0;
+
+    KEYWORDS.each(function(keyword) {
+      // levelと同じ長さのキーワードをカウント
+      if (keyword.length === level) count++;
+    });
+    // ライフ値セット
+    this.life = (count / 2) | 0;
+    this.lifeLabel.text = 'LIFE: {0}'.format(this.life);
   },
   // 結果表示
   showResult: function() {
@@ -399,7 +444,7 @@ phina.define('ResultScene', {
       });
       // ツイートボタンが押された時      
       this.shareButton.onclick = function() {
-        var text = 'shot keywords {0} / {1}'.format(params.score, params.total);
+        var text = 'LEVEL {0} shot keywords {0} / {1}'.format(params.score, params.total);
         var url = phina.social.Twitter.createURL({
           text: text,
           hashtags: 'phina_js,game,keyword_shot',
@@ -474,7 +519,7 @@ phina.main(function() {
     width: SCREEN_WIDTH,
     height: SCREEN_HEIGHT,
     assets: ASSETS,
-    fit: false,
+    //fit: false,
   });
   // 実行
   app.run();
