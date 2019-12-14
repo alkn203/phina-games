@@ -1,0 +1,571 @@
+<!doctype html>
+ 
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    
+    <title>shisensho clone by phina.js</title>
+    <meta name="description" content="${description}" />
+    
+    <style>*, *:before, *:after {
+  box-sizing: border-box; 
+}
+html {
+  font-size: 62.5%;
+}
+body {
+  color: #444;
+  background-color: hsl(0, 0%, 96%);
+}
+h1 {
+  font-size: 1.8rem;
+}
+
+canvas {
+  outline: none;
+}</style>
+  </head>
+  <body>
+    <script src="https://cdn.jsdelivr.net/gh/phinajs/phina.js@v0.2.3/build/phina.js"></script>
+    <script>phina.globalize();
+// アセット
+var ASSETS = {
+  // 画像
+  image: {
+    'tiles': 'https://cdn.jsdelivr.net/gh/alkn203/shisen/assets/mahjhongtiles.png',
+  },
+};
+// 定数
+var SCREEN_WIDTH = 960;
+var SCREEN_HEIGHT = 640;
+var GRID_NUM_X = 19;
+var GRID_NUM_Y = 10;
+var GRID_SIZE_X = SCREEN_WIDTH / GRID_NUM_X; // グリッドのサイズ
+var GRID_SIZE_Y = SCREEN_HEIGHT / GRID_NUM_Y;
+var DEBUG = false;
+// メインシーン
+phina.define('MainScene', {
+  superClass: 'DisplayScene',
+  // コンストラクタ
+  init: function(options) {
+    // 親クラス初期化
+    this.superInit(options);
+    // 背景色
+    this.backgroundColor = 'skyblue';
+    // グリッド
+    this.gx = Grid(SCREEN_WIDTH, GRID_NUM_X);
+    this.gy = Grid(SCREEN_HEIGHT, GRID_NUM_Y);
+    // ライン描画用レイヤ
+    this.elem = PlainElement({
+      width: SCREEN_WIDTH,
+      height: SCREEN_HEIGHT,
+    }).addChildTo(this).setPosition(this.gx.center(), this.gy.center());
+    // canvasパラメータ指定
+    this.elem.canvas.context.strokeStyle = 'red';
+    this.elem.canvas.context.lineWidth = 4;
+    // グループ
+    this.tileGroup = DisplayElement().addChildTo(this);
+    // ラベルボタン
+    this.button  = Button({
+      text: '詰み',
+      fontSize: 48,
+      width: 180,
+    }).addChildTo(this);
+    this.button.setInteractive(false).hide();
+    
+    var self = this;
+    this.button.setPosition(this.gx.center(), this.gy.center());
+    this.button.onpush = function() {
+      this.setInteractive(false).hide();
+      self.initGame();
+    };
+    // ペア
+    this.pair = [];
+    // ラインの頂点配列
+    this.points = [];
+    // 初期化
+    this.initGame();
+  },
+  /**
+   * @method initGame
+   * ゲームを初期化する
+   */
+  initGame: function() {
+    this.tileGroup.children.clear();
+    this.locateTiles();
+    this.setTileData();
+    this.connectTileData();
+    this.redrawTiles();
+    // クリアできる配置でなければ再配置
+    if (!this.canClear()) {
+      this.initGame();
+    }
+    else {
+      this.locateTiles();
+      this.connectTileData();
+      this.redrawTiles();
+    }
+  },
+  /**
+   * @method locateTiles
+   * 牌を配置する
+   */
+  locateTiles: function() {
+    var halfX = GRID_SIZE_X / 2;
+    var halfY = GRID_SIZE_Y / 2;
+    var self = this;
+    // ループ
+    Array.range(1, GRID_NUM_X - 1).each(function(i) {
+      Array.range(1, GRID_NUM_Y - 1).each(function(j) {
+        var x = self.gx.span(i) + halfX;
+        var y = self.gy.span(j) + halfY;
+        var tile = MahjongTile().addChildTo(self.tileGroup);
+        tile.setPosition(x, y);
+        tile.indexI = i;
+        tile.indexJ = j;
+        // タッチ時
+        tile.onpointend = function() {
+          // ペア選択処理
+          self.selectPair(tile);
+        };
+      });
+    });
+  },
+  /**
+   * @method canClear
+   * 初期配置でクリアできるかチェックする
+   * @return {boolean} 真偽値を返す
+   */
+  canClear: function() {
+    // 牌の数分繰り返す
+    (136).times(function(i) {
+      if (this.canRemove()) {
+        this.deletePair();
+      }
+    }, this);
+    // 全て削除できた場合 
+    if (this.tileGroup.children.length === 0) return true;
+    this.clearPair();
+    return false;
+  },
+  /**
+   * @method canRemove
+   * 消せる牌があるかチェックする
+   * @return {boolean} 真偽値を返す
+   */
+  canRemove: function() {
+    for (var i = 0; i < this.tileGroup.children.length; ++i) {
+      var p1 = this.tileGroup.children[i];
+      
+      for (var j = 0; j < this.tileGroup.children.length; ++j) {
+        var p2 = this.tileGroup.children[j];
+        //
+        if (p1.index === p2.index) {
+          //
+          if (p1.indexI !== p2.indexI || p1.indexJ !== p2.indexJ) {
+            this.pair.push(p1);
+            this.pair.push(p2);
+
+            if (this.checkPair()) return true;
+            this.clearPair();
+          }
+        }
+      }  
+    }
+    return false;
+  },
+  /**
+   * @method setTileData
+   * 麻雀牌データの設定
+   */
+  setTileData: function() {
+    var self = this;
+    // 麻雀牌のデータ
+    this.tileData = [];
+    // 各種類4セットずつ設定
+    (4).times(function() {
+      Array.range(0, 34).each(function(index) {
+        self.tileData.push(index);
+      });    
+    });
+    // シャッフル
+    this.tileData.shuffle();
+  },
+  /**
+   * @method connectTileData
+   * 麻雀牌データの紐づけ
+   */
+  connectTileData: function() {
+    var self = this;
+    // 配列から麻雀牌の種類を代入
+    (this.tileData.length).times(function(i) {
+      self.tileGroup.children[i].index = self.tileData[i];
+    });
+  },
+  /**
+   * @method redrawTiles
+   * 麻雀牌画像更新
+   */
+  redrawTiles: function() {
+    this.tileGroup.children.each(function(tile) {
+      // フレームインデックス指定
+      tile.frameIndex = tile.index;
+      // サイズ変更
+      tile.setSize(GRID_SIZE_X * 0.95, GRID_SIZE_Y * 0.95);
+    });
+  },
+  /**
+   * @method selectPair
+   * ペアを選択する
+   * @param {Object} tile - 麻雀牌クラスのオブジェクト
+   */
+  selectPair: function(tile) {
+    var pair = this.pair;
+    // 選択なし
+    if (pair.length === 0) {
+      pair.push(tile);
+      // フレーム表示
+      tile.drawFrame();
+      tile.setInteractive(false);
+      return;
+    }
+    // 選択一つ
+    if (pair.length === 1) {
+      pair.push(tile);
+      tile.drawFrame();
+      tile.setInteractive(false);
+      // 柄違い
+      if (pair.first.index !== pair.last.index) {
+        this.clearPair();
+        return;
+      }
+      // 同じ柄なら消せるかチェック
+      if (!this.checkPair()) {
+        this.clearPair();
+        return;
+      }
+      // ペアのラインを引く
+      this.drawPiarLine();
+      // 一旦非表示
+      this.elem.alpha = 0;
+      // ラインをフェードイン表示
+      this.elem.tweener.clear()
+               .fadeIn(500)
+               .call(function() {
+                 this.elem.alpha = 0;
+                 // ペアの牌を削除
+                 this.deletePair();
+                 // 詰まりかどうか
+                 this.checkmate();
+               }, this);
+    }
+  },
+  /**
+   * @method clearPair
+   * ペアを解除する
+   */
+  clearPair: function() {
+    this.pair.each(function(tile) {
+      tile.removeFrame();
+      tile.setInteractive(true);
+    });
+
+    this.pair.clear();
+  },
+  /**
+   * @method deletePair
+   * ペアを削除する
+   */
+  deletePair: function() {
+    this.pair.first.remove();
+    this.pair.last.remove();
+    this.pair.clear();
+  },
+  /**
+   * @method checkmate
+   * 詰まりかどうか調べる
+   */
+  checkmate: function() {
+    //
+    if (this.canRemove()) {
+      this.clearPair();
+      return;
+    }
+    //
+    if (this.tileGroup.children.length === 0) {
+      this.button.text = '了';
+      // ラベル表示
+      this.button.setInteractive(true).show();
+      return;
+    }
+    
+    this.tileGroup.children.each(function(tile) {
+      tile.setInteractive(false);  
+    });
+    // ラベル表示
+    this.button.text = '詰み';
+    this.button.setInteractive(true).show();
+  },
+  /**
+   * @method checkPair
+   * ペアが消せるかチェックする
+   * @return {boolean} 真偽値を返す
+   */
+  checkPair: function() {
+    // 隣接
+    if (this.checkNextTo()) return true;
+    // 横方向
+    if (this.checkHorizontal()) return true;
+    // 縦方向
+    if (this.checkVertical()) return true;
+    return false;
+  },
+  /**
+   * @method checkNextTo
+   * 隣接ペアかチェックする
+   * @return {boolean} 真偽値を返す
+   */
+  checkNextTo: function() {
+    var p1 = this.pair.first;
+    var p2 = this.pair.last;
+    // 上下
+    if (p1.indexI === p2.indexI) {
+      if ((p1.indexJ === p2.indexJ - 1) || (p1.indexJ === p2.indexJ + 1)) {
+        this.points.clear();
+        return true;  
+      }
+    }
+    // 左右
+    if (p1.indexJ === p2.indexJ) {
+      if ((p1.indexI === p2.indexI - 1) || (p1.indexI === p2.indexI + 1)) {
+        this.points.clear();
+        return true;  
+      }
+    }
+    return false;  
+  },
+  /**
+   * @method checkHorizontal
+   * 横方向のペアチェック
+   * @return {boolean} 真偽値を返す
+   */
+  checkHorizontal: function() {
+    var p1 = this.pair.first;
+    var p2 = this.pair.last;
+    
+    for (var i = 0; i < GRID_NUM_X; i++) {
+      var r1 = false;
+      var r2 = false;
+      var r3 = false;
+      // クランク
+      if (i < p1.indexI && !this.isTileInRangeI(i, p1.indexI - 1, p1.indexJ)) r1 = true;
+      if (i > p1.indexI && !this.isTileInRangeI(p1.indexI + 1, i, p1.indexJ)) r1 = true;
+
+      if (i < p2.indexI && !this.isTileInRangeI(i, p2.indexI - 1, p2.indexJ)) r2 = true;
+      if (i > p2.indexI && !this.isTileInRangeI(p2.indexI + 1, i, p2.indexJ)) r2 = true;
+
+      if (p1.indexJ < p2.indexJ && !this.isTileInRangeJ(p1.indexJ, p2.indexJ, i)) r3 = true;  
+      if (p1.indexJ > p2.indexJ && !this.isTileInRangeJ(p2.indexJ, p1.indexJ, i)) r3 = true;  
+      // L字
+      if (i === p1.indexI) {
+        r1 = true;
+        if (i < p2.indexI && !this.isTileInRangeI(i, p2.indexI - 1, p2.indexJ)) r2 = true;
+        if (i > p2.indexI && !this.isTileInRangeI(p2.indexI + 1, i, p2.indexJ)) r2 = true;
+        
+        if (p1.indexJ < p2.indexJ && !this.isTileInRangeJ(p1.indexJ + 1, p2.indexJ, i)) r3 = true;  
+        if (p1.indexJ > p2.indexJ && !this.isTileInRangeJ(p2.indexJ, p1.indexJ - 1, i)) r3 = true;  
+      }
+      // L字
+      if (i === p2.indexI) {
+        r2 = true;
+        if (i < p1.indexI && !this.isTileInRangeI(i, p1.indexI - 1, p1.indexJ)) r1 = true;
+        if (i > p1.indexI && !this.isTileInRangeI(p1.indexI + 1, i, p1.indexJ)) r1 = true;
+        
+        if (p2.indexJ < p1.indexJ && !this.isTileInRangeJ(p2.indexJ + 1, p1.indexJ, i)) r3 = true;  
+        if (p2.indexJ > p1.indexJ && !this.isTileInRangeJ(p1.indexJ, p2.indexJ - 1, i)) r3 = true;  
+      }
+      // 直列
+      if (i === p1.indexI && i == p2.indexI) {
+        r1 = true;
+        r2 = true;
+        if (p1.indexJ < p2.indexJ && !this.isTileInRangeJ(p1.indexJ + 1, p2.indexJ - 1, i)) r3 = true;  
+        if (p1.indexJ > p2.indexJ && !this.isTileInRangeJ(p2.indexJ + 1, p1.indexJ - 1, i)) r3 = true;  
+        
+      }
+      // 線が結べるなら頂点位置を記憶
+      if (r1 && r2 && r3) {
+        this.points.clear();
+        this.points.push(Vector2(p1.indexI, p1.indexJ));
+        this.points.push(Vector2(i, p1.indexJ));
+        this.points.push(Vector2(i, p2.indexJ));
+        this.points.push(Vector2(p2.indexI, p2.indexJ));
+        
+        return true;
+      }
+    }
+    return false;
+  },
+  /**
+   * @method checkVertical
+   * 縦方向のペアチェック
+   * @return {boolean} 真偽値を返す
+   */
+  checkVertical: function() {
+    var p1 = this.pair.first;
+    var p2 = this.pair.last;
+    
+    for (var j = 0; j < GRID_NUM_Y; j++) {
+      var r1 = false;
+      var r2 = false;
+      var r3 = false;
+      // クランク
+      if (j < p1.indexJ && !this.isTileInRangeJ(j, p1.indexJ - 1, p1.indexI)) r1 = true;
+      if (j > p1.indexJ && !this.isTileInRangeJ(p1.indexJ + 1, j, p1.indexI)) r1 = true;
+
+      if (j < p2.indexJ && !this.isTileInRangeJ(j, p2.indexJ - 1, p2.indexI)) r2 = true;
+      if (j > p2.indexJ && !this.isTileInRangeJ(p2.indexJ + 1, j, p2.indexI)) r2 = true;
+
+      if (p1.indexI < p2.indexI && !this.isTileInRangeI(p1.indexI, p2.indexI, j)) r3 = true;  
+      if (p1.indexI > p2.indexI && !this.isTileInRangeI(p2.indexI, p1.indexI, j)) r3 = true;  
+      // L字
+      if (j === p1.indexJ) {
+        r1 = true;
+        if (j < p2.indexJ && !this.isTileInRangeJ(j, p2.indexJ - 1, p2.indexI)) r2 = true;
+        if (j > p2.indexJ && !this.isTileInRangeJ(p2.indexJ + 1, j, p2.indexI)) r2 = true;
+        
+        if (p1.indexI < p2.indexI && !this.isTileInRangeI(p1.indexI + 1, p2.indexI, j)) r3 = true;  
+        if (p1.indexI > p2.indexI && !this.isTileInRangeI(p2.indexI, p1.indexI - 1, j)) r3 = true;  
+      }
+
+      if (j === p2.indexJ) {
+        r2 = true;
+        if (j < p1.indexJ && !this.isTileInRangeJ(j, p1.indexJ - 1, p1.indexI)) r1 = true;
+        if (j > p1.indexJ && !this.isTileInRangeJ(p1.indexJ + 1, j, p1.indexI)) r1 = true;
+        
+        if (p2.indexI < p1.indexI && !this.isTileInRangeI(p2.indexI + 1, p1.indexI, j)) r3 = true;  
+        if (p2.indexI > p1.indexI && !this.isTileInRangeI(p1.indexI, p2.indexI - 1, j)) r3 = true;  
+      }
+      // 直列
+      if (j === p1.indexJ && j === p2.indexJ) {
+        r1 = true;
+        r2 = true;
+        if (p1.indexI < p2.indexI && !this.isTileInRangeI(p1.indexI + 1, p2.indexI - 1, j)) r3 = true;  
+        if (p1.indexI > p2.indexI && !this.isTileInRangeI(p2.indexI + 1, p1.indexI - 1, j)) r3 = true;  
+      } 
+      // 線が結べるなら頂点位置を記憶
+      if (r1 && r2 && r3) {
+        this.points.clear();
+        this.points.push(Vector2(p1.indexI, p1.indexJ));
+        this.points.push(Vector2(p1.indexI, j));
+        this.points.push(Vector2(p2.indexI, j));
+        this.points.push(Vector2(p2.indexI, p2.indexJ));
+        
+        return true;
+      }
+    }
+    return false;
+  },
+  /**
+   * @method isTileInRangeI
+   * 横インデックス範囲内に牌があるかを調べる
+   * @return {boolean} 真偽値を返す
+   */
+  isTileInRangeI: function(i1, i2, j) {
+    var result = false;
+    
+    this.tileGroup.children.some(function(tile) {
+      if (i1 <= tile.indexI &&  tile.indexI <= i2 && tile.indexJ === j) {
+        result = true;
+        return true;
+      }
+    });
+    return result;
+  },
+  /**
+   * @method isTileInRangeJ
+   * 縦インデックス範囲内に牌があるかを調べる
+   * @return {boolean} 真偽値を返す
+   */
+  isTileInRangeJ: function(j1, j2, i) {
+    var result = false;
+    
+    this.tileGroup.children.some(function(tile) {
+      if (j1 <= tile.indexJ &&  tile.indexJ <= j2 && tile.indexI === i) {
+        result = true;
+        return true;
+      }
+    });
+    return result;
+  },
+  /**
+   * @method drawPiarLine
+   * ペアのラインを描画する
+   */
+  drawPiarLine: function() {
+    var points = this.points;
+    this.elem.canvas.clear();
+    
+    for(var i = 0; i < points.length - 1; ++i) {
+      var x1 = this.gx.span(points[i].x) + GRID_SIZE_X / 2;
+      var y1 = this.gy.span(points[i].y) + GRID_SIZE_Y / 2;
+      var x2 = this.gx.span(points[i + 1].x) + GRID_SIZE_X / 2;
+      var y2 = this.gy.span(points[i + 1].y) + GRID_SIZE_Y / 2;
+      
+      this.elem.canvas.drawLine(x1, y1, x2, y2);  
+    }
+  },
+});
+/**
+ * @class MahjongTile
+ * # 麻雀牌クラス
+ */
+phina.define('MahjongTile', {
+  // Spriteを継承
+  superClass: 'Sprite',
+  /**
+   * @method init
+   * 麻雀牌初期化処理
+   */
+  init: function() {
+    // 親クラス初期化
+    this.superInit('tiles', 30, 40);
+    // タッチ可能にする
+    this.setInteractive(true);
+  },
+  /**
+   * @method drawFrame
+   * 麻雀牌に枠を表示する
+   */
+  drawFrame: function() {
+    RectangleShape({
+      width: GRID_SIZE_X,
+      height: GRID_SIZE_Y,
+      fill: null,
+      stroke: 'red',
+    }).addChildTo(this);
+  },
+  /**
+   * @method removeFrame
+   * 麻雀牌の枠を消去する
+   */
+  removeFrame: function() {
+    this.children.clear();
+  },
+});
+// メイン
+phina.main(function() {
+  var app = GameApp({
+    startLabel: 'main',
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    // アセット読み込み
+    assets: ASSETS,
+  });
+  
+  app.run();
+});</script>
+  </body>
+</html>
+
