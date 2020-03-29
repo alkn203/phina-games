@@ -67,10 +67,17 @@ var SPRITE_SHEET = {
       "rows": 1,
     },
     "animations": {
-      "explode_center": {
+      "center": {
         "frames": [0,1,2],
-        "next": "explode_center",
-        "frequency": 4,
+        "frequency": 2,
+      },
+      "middle": {
+        "frames": [3,4,5],
+        "frequency": 2,
+      },
+      "edge": {
+        "frames": [6,7,8],
+        "frequency": 2,
       },
     }
   },
@@ -91,6 +98,8 @@ var ASSETS = {
 var UNIT = 64;
 // キー情報配列
 var KEY_ARR = [['left', -1, 0], ['right', 1, 0], ['up', 0, -1], ['down', 0, 1]];
+//  爆風方向配列
+var EXPLODE_ARR = [[-1, 0, 90], [1, 0, 90], [0, -1, 0], [0, 1, 0]];
 // ステージデータ
 var STAGE_DATA = [
   {
@@ -98,7 +107,7 @@ var STAGE_DATA = [
     // マップデータ
     map: [
       [1,1,1,1,1,1,1,1,1,1],
-      [1,0,0,4,2,2,0,0,0,1],
+      [1,0,0,0,2,2,0,0,0,1],
       [1,0,1,2,1,1,2,1,2,1],
       [1,0,2,0,0,0,0,2,0,1],
       [1,2,1,2,1,1,2,1,0,1],
@@ -152,11 +161,55 @@ phina.define("MainScene", {
     
     var bomb = Bomb().addChildTo(this);
     bomb.on('explode', function() {
-      var explosion = CenterExplosion().addChildTo(self.explosionGroup);
-      explosion.setPosition(bomb.x, bomb.y);
-      bomb.remove();
+      self.explode(bomb);  
     });
     this.locateObject(bomb, 2, 1);
+  },
+  //
+  explode: function(bomb) {
+    var map = this.map;
+    var self = this;
+    
+    var explosion = Explosion('center', 0).addChildTo(this.explosionGroup);
+    explosion.setPosition(bomb.x, bomb.y);
+    //
+    EXPLODE_ARR.each(function(elem) {
+      var e0 = elem[0];
+      var e1 = elem[1];
+      var e2 = elem[2];
+      var dx = bomb.x + e0 * UNIT;
+      var dy = bomb.y + e1 * UNIT;
+      //
+      if (map.checkTile(dx, dy) === 0) {
+        self.explodeNext(e0, e1, dx, dy, e2);
+      }
+    });
+    
+    bomb.remove();
+  },
+  //
+  explodeNext: function(dirX, dirY, x, y, rot) {
+    var map = this.map;
+    
+    var explosion = Explosion('middle', rot).addChildTo(this.explosionGroup);
+    explosion.setPosition(x, y);
+    var nx = x + dirX * UNIT;
+    var ny = y + dirY * UNIT;
+    //
+    if (map.checkTile(nx, ny) === 1) return;
+    //
+    if (map.checkTile(nx, ny) === 2) {
+      var block = map.getChild(nx, ny);
+      block.remove();
+      map.setTile(nx, ny, 0);
+      var floor = Sprite('tile', UNIT, UNIT).addChildTo(map);
+      floor.setPosition(nx, ny);
+      var broken = BrokenBlock().addChildTo(this).setPosition(nx, ny);
+      return;
+    }
+    if (map.checkTile(nx, ny) === 0) {
+      this.explodeLeft(nx, ny);
+    }
   },
   // オブジェクト配置用メソッド
   locateObject: function(obj, i, j) {
@@ -177,7 +230,6 @@ phina.define("MainScene", {
     if (player.moving) return;
       
     var key = app.keyboard;
-    var array = [['left', -1, 0],['right', 1, 0],['up', 0, -1],['down', 0, 1]];
     // 移動判定
     KEY_ARR.each(function(elem) {
       var e0 = elem[0];
@@ -254,27 +306,54 @@ phina.define("Bomb", {
     // フレームアニメーション指定
     this.anim = FrameAnimation('bombs').attachTo(this);
     this.anim.gotoAndPlay('fire');
-    var self = this;
+    // 威力
+    this.power = 1;
     //
     this.tweener.wait(3000)
                 .call(function() {
-                  self.flare('explode');
-                });
+                  this.flare('explode');
+                }, this);
   },
 });
 /*
- * 爆発クラス（中心）
+ * 爆発クラス
  */
-phina.define("CenterExplosion", {
+phina.define("Explosion", {
+  // 継承
+  superClass: 'Sprite',
+  // コンストラクタ
+  init: function(type, angle) {
+    // 親クラス初期化
+    this.superInit('explosions', UNIT, UNIT);
+    // フレームアニメーション指定
+    this.anim = FrameAnimation('explosions').attachTo(this);
+    // タイプ
+    this.anim.gotoAndPlay(type);
+    // 角度
+    this.rotation = angle;
+  },
+  // 毎フレーム更新
+  update: function() {
+    // フレームアニメーションが終わったら削除
+    if (this.anim.finished) {
+      this.remove();
+    }
+  },
+});
+/*
+ * 壊れブロッククラス
+ */
+phina.define("BrokenBlock", {
   // 継承
   superClass: 'Sprite',
   // コンストラクタ
   init: function() {
     // 親クラス初期化
-    this.superInit('explosions', UNIT, UNIT);
-    // フレームアニメーション指定
-    this.anim = FrameAnimation('explosions').attachTo(this);
-    this.anim.gotoAndPlay('explode_center');
+    this.superInit('tile', UNIT, UNIT);
+    //
+    this.frameIndex = 3;
+    //
+    this.tweener.fadeOut(200).play();
   },
 });
 /*
