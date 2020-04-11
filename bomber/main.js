@@ -107,20 +107,24 @@ var STAGE_DATA = [
     // マップデータ
     map: [
       [1,1,1,1,1,1,1,1,1,1],
-      [1,0,0,0,2,2,0,0,0,1],
-      [1,0,1,2,1,1,2,1,2,1],
-      [1,0,2,0,0,0,0,2,0,1],
-      [1,2,1,2,1,1,2,1,0,1],
-      [1,0,0,0,2,2,0,0,0,1],
-      [1,0,1,2,1,1,2,1,2,1],
-      [1,0,0,0,2,0,0,0,0,1],
-      [1,2,1,2,1,1,2,1,0,1],
-      [1,0,0,0,2,0,0,0,0,1],
-      [1,0,1,2,1,1,2,1,2,1],
-      [1,0,0,0,2,0,0,2,0,1],
-      [1,2,1,2,1,1,2,1,0,1],
-      [1,0,0,2,2,2,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,0,1,0,1,1,0,1,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,0,1,0,1,1,0,1,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,0,1,0,1,1,0,1,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,0,1,0,1,1,0,1,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,0,1,0,1,1,0,1,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,0,1,0,1,1,0,1,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
       [1,1,1,1,1,1,1,1,1,1]],
+    // ブロックの位置データ
+    block: [
+      {i: 3, j: 1},{i: 6, j: 1},
+      {i: 1, j: 3}],
     // プレイヤーの位置データ
     player: {i: 1, j: 1},
   },
@@ -136,8 +140,6 @@ phina.define("MainScene", {
     // 親クラス初期化
     this.superInit();
     //
-    
-
     this.setStage(0);
   },
   // ステージ作成
@@ -154,16 +156,23 @@ phina.define("MainScene", {
     // プレイヤー作成・配置
     this.player = Player().addChildTo(this);
     this.locateObject(this.player, data[n].player.i, data[n].player.j);
-    
+    // ブロックグループ作成・配置
+    this.blockGroup = DisplayElement().addChildTo(this);
+    this.locateBlock(data[n].block);
+    // 爆弾グループ    
     this.bombGroup = DisplayElement().addChildTo(this);
+    // 爆発グループ
     this.explosionGroup = DisplayElement().addChildTo(this);
+  },
+  // ブロック配置
+  locateBlock: function(location) {
     var self = this;
     
-    var bomb = Bomb().addChildTo(this);
-    bomb.on('explode', function() {
-      self.explode(bomb);  
+    location.each(function(elem) {
+      // ブロック作成
+      var block = Block().addChildTo(self.blockGroup);
+      self.locateObject(block, elem.i, elem.j);
     });
-    this.locateObject(bomb, 2, 1);
   },
   //
   explode: function(bomb) {
@@ -172,14 +181,22 @@ phina.define("MainScene", {
     
     var explosion = Explosion('center', 0).addChildTo(this.explosionGroup);
     explosion.setPosition(bomb.x, bomb.y);
-    //
+    // 爆弾の１つ先を調べる
     EXPLODE_ARR.each(function(elem) {
       var e0 = elem[0];
       var e1 = elem[1];
       var e2 = elem[2];
       var dx = bomb.x + e0 * UNIT;
       var dy = bomb.y + e1 * UNIT;
-      //
+      // 壁
+      if (map.checkTile(dx, dy) === 1) return;
+      // ブロック
+      var block = self.getBlock(dx, dy);
+      if (block) {
+        block.remove();
+        return;
+      }
+      // 何もなし      
       if (map.checkTile(dx, dy) === 0) {
         self.explodeNext(e0, e1, dx, dy, e2);
       }
@@ -195,20 +212,17 @@ phina.define("MainScene", {
     explosion.setPosition(x, y);
     var nx = x + dirX * UNIT;
     var ny = y + dirY * UNIT;
-    //
+    // 壁
     if (map.checkTile(nx, ny) === 1) return;
-    //
-    if (map.checkTile(nx, ny) === 2) {
-      var block = map.getChild(nx, ny);
+    // ブロック
+    var block = this.getBlock(nx, ny);
+    if (block) {
       block.remove();
-      map.setTile(nx, ny, 0);
-      var floor = Sprite('tile', UNIT, UNIT).addChildTo(map);
-      floor.setPosition(nx, ny);
-      var broken = BrokenBlock().addChildTo(this).setPosition(nx, ny);
       return;
     }
+    // 何もなし      
     if (map.checkTile(nx, ny) === 0) {
-      this.explodeLeft(nx, ny);
+      this.explodeNext(dirX, dirY, nx, ny, rot);
     }
   },
   // オブジェクト配置用メソッド
@@ -220,6 +234,7 @@ phina.define("MainScene", {
   // 毎フレーム処理  
   update: function(app) {
     this.checkMove(app);
+    this.setBomb(app);
   },
   // 移動チェック
   checkMove: function(app) {
@@ -263,13 +278,30 @@ phina.define("MainScene", {
                     player.moving = false;  
                   }).play();
   },
-  // 指定位置に荷物があれば返す
-  getBaggage: function(x, y) {
+  // 爆弾設置
+  setBomb: function(app) {
+    var player = this.player;
+    // 移動中なら何もしない
+    if (player.moving) return;
+      
+    var key = app.keyboard;
+    var self = this;
+    //
+    if (key.getKeyUp('Z')) {
+      var bomb = Bomb().addChildTo(this.bombGroup);
+      bomb.setPosition(player.x, player.y);
+      bomb.on('explode', function() {
+        self.explode(bomb);  
+      });
+    }
+  },
+  // 指定位置にブロックがあれば返す
+  getBlock: function(x, y) {
     var result = null;
     
-    this.baggageGroup.children.some(function(baggage) {
-      if (baggage.x === x && baggage.y === y) {
-        result = baggage;
+    this.blockGroup.children.some(function(block) {
+      if (block.x === x && block.y === y) {
+        result = block;
         return true;
       }
     });
@@ -341,9 +373,9 @@ phina.define("Explosion", {
   },
 });
 /*
- * 壊れブロッククラス
+ * ブロッククラス
  */
-phina.define("BrokenBlock", {
+phina.define("Block", {
   // 継承
   superClass: 'Sprite',
   // コンストラクタ
@@ -351,9 +383,18 @@ phina.define("BrokenBlock", {
     // 親クラス初期化
     this.superInit('tile', UNIT, UNIT);
     //
+    this.frameIndex = 2;
+  },
+  // 破壊
+  broke: function() {
+    //
     this.frameIndex = 3;
     //
-    this.tweener.fadeOut(200).play();
+    var self = this;
+    this.tweener.fadeOut(200)
+                .call(function() {
+                  self.remove();
+                }).play();
   },
 });
 /*
