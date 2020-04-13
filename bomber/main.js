@@ -181,65 +181,29 @@ phina.define("MainScene", {
     });
   },
   //
-  explode: function(bomb) {
+  explode: function(dirX, dirY, x, y, rot) {
     var map = this.map;
-    var self = this;
-    
-    var explosion = Explosion('center', 0).addChildTo(this.explosionGroup);
-    explosion.setPosition(bomb.x, bomb.y);
-    bomb.remove();
-    // 爆弾の上下左右１つ先を調べる
-    EXPLODE_ARR.each(function(elem) {
-      var e0 = elem[0];
-      var e1 = elem[1];
-      var e2 = elem[2];
-      var dx = bomb.x + e0 * UNIT;
-      var dy = bomb.y + e1 * UNIT;
-      // 壁
-      if (map.checkTile(dx, dy) === 1) return;
-      // ブロック
-      var block = self.getBlock(dx, dy);
-      if (block) {
-        block.disable();
-        return;
-      }
-      // 爆弾
-      var bomb2 = self.getBomb(dx, dy);
-      if (bomb2) {
-        self.explode(bomb2);
-        return;
-      }
-      // 何もなし      
-      if (map.checkTile(dx, dy) === 0) {
-        self.explodeNext(e0, e1, dx, dy, e2);
-      }
-    });
-  },
-  //
-  explodeNext: function(dirX, dirY, x, y, rot) {
-    var map = this.map;
-    
-    var explosion = Explosion('middle', rot).addChildTo(this.explosionGroup);
-    explosion.setPosition(x, y);
-    var nx = x + dirX * UNIT;
-    var ny = y + dirY * UNIT;
     // 壁
-    if (map.checkTile(nx, ny) === 1) return;
+    if (map.checkTile(x, y) === 1) return;
     // ブロック
-    var block = this.getBlock(nx, ny);
+    var block = this.getBlock(x, y);
     if (block) {
       block.disable();
       return;
     }
     // 爆弾
-    var bomb = this.getBomb(nx, ny);
+    var bomb = this.getBomb(x, y);
     if (bomb) {
-      this.explode(bomb);
+      bomb.flare('explode');
       return;
     }
     // 何もなし      
-    if (map.checkTile(nx, ny) === 0) {
-      this.explodeNext(dirX, dirY, nx, ny, rot);
+    if (map.checkTile(x, y) === 0) {
+      var explosion = Explosion('middle', rot).addChildTo(this.explosionGroup);
+      explosion.setPosition(x, y);
+      var dx = x + dirX * UNIT;
+      var dy = y + dirY * UNIT;
+      this.explode(dirX, dirY, dx, dy, rot);
     }
   },
   // オブジェクト配置用メソッド
@@ -309,8 +273,24 @@ phina.define("MainScene", {
     if (key.getKeyUp('Z')) {
       var bomb = Bomb().addChildTo(this.bombGroup);
       bomb.setPosition(player.x, player.y);
+      // explodeイベント
       bomb.on('explode', function() {
-        self.explode(bomb);  
+        var x = bomb.x;
+        var y = bomb.y;
+        bomb.remove();
+        // 爆発の中心
+        var explosion = Explosion('center', 0).addChildTo(self.explosionGroup);
+        explosion.setPosition(x, y);
+        // 四方爆風処理
+        EXPLODE_ARR.each(function(elem) {
+          var dirX = elem[0];
+          var dirY = elem[1];
+          var rot = elem[2];
+          var dx = x + dirX * UNIT;
+          var dy = y + dirY * UNIT;
+          //
+          self.explode(dirX, dirY, dx, dy, rot);  
+        });
       });
     }
   },
