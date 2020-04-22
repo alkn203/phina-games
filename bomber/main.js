@@ -67,17 +67,20 @@ var SPRITE_SHEET = {
       "rows": 1,
     },
     "animations": {
+      // 中心
       "center": {
         "frames": [0,1,2],
-        "frequency": 2,
+        "frequency": 4,
       },
+      // 途中
       "middle": {
         "frames": [3,4,5],
-        "frequency": 2,
+        "frequency": 4,
       },
+      // 端
       "edge": {
         "frames": [6,7,8],
-        "frequency": 2,
+        "frequency": 4,
       },
     }
   },
@@ -95,45 +98,31 @@ var ASSETS = {
   spritesheet: SPRITE_SHEET
 };
 // 定数
-var UNIT = 64;
+var GRID_SIZE = 64;
+var MOVE_SPAN = 16;
 // キー情報配列
 var KEY_ARR = [['left', -1, 0], ['right', 1, 0], ['up', 0, -1], ['down', 0, 1]];
 //  爆風方向配列
 var EXPLODE_ARR = [[-1, 0, 90], [1, 0, 90], [0, -1, 0], [0, 1, 0]];
 // ステージデータ
 var STAGE_DATA = [
-  {
-    // ステージ1
-    // マップデータ
-    map: [
-      [1,1,1,1,1,1,1,1,1,1],
-      [1,0,0,0,0,0,0,0,0,1],
-      [1,0,1,0,1,1,0,1,0,1],
-      [1,0,0,0,0,0,0,0,0,1],
-      [1,0,1,0,1,1,0,1,0,1],
-      [1,0,0,0,0,0,0,0,0,1],
-      [1,0,1,0,1,1,0,1,0,1],
-      [1,0,0,0,0,0,0,0,0,1],
-      [1,0,1,0,1,1,0,1,0,1],
-      [1,0,0,0,0,0,0,0,0,1],
-      [1,0,1,0,1,1,0,1,0,1],
-      [1,0,0,0,0,0,0,0,0,1],
-      [1,0,1,0,1,1,0,1,0,1],
-      [1,0,0,0,0,0,0,0,0,1],
-      [1,1,1,1,1,1,1,1,1,1]],
-    // ブロックの位置データ
-    block: [
-      [3,1],[6,1],
-      [1,3],[3,3],[6,3],[8,3],
-      [3,5],[6,5],
-      [1,7],[3,7],[6,7],[8,7],
-      [3,9],[6,9],
-      [1,11],[3,11],[6,11],[8,11],
-      [3,13],[6,13],
-    ],
-    // プレイヤーの位置データ
-    player: {i: 1, j: 1},
-  },
+  // ステージ1
+  // 0:空白 1:壁 2:ブロック 9:プレイヤー
+  ['1111111111',
+   '1902002001',
+   '1010110101',
+   '1202002021',
+   '1010110101',
+   '1002002001',
+   '1010110101',
+   '1202002021',
+   '1010110101',
+   '1002002001',
+   '1010110101',
+   '1202002021',
+   '1010110101',
+   '1002002001',
+   '1111111111'],
 ];
 /*
  * メインシーン
@@ -145,72 +134,90 @@ phina.define("MainScene", {
   init: function() {
     // 親クラス初期化
     this.superInit();
-    //
-    this.setStage(0);
-  },
-  // ステージ作成
-  setStage: function(n) {
-    var data = STAGE_DATA;
-    //
-    this.map = phina.util.Map({
-      tileWidth: UNIT,
-      tileHeight: UNIT,
-      imageName: 'tile',
-      mapData: data[n].map,
-      collisionData: data[n].map,
-    }).addChildTo(this);
-    // プレイヤー作成・配置
-    this.player = Player().addChildTo(this);
-    this.locateObject(this.player, data[n].player.i, data[n].player.j);
-    // ブロックグループ作成・配置
-    this.blockGroup = DisplayElement().addChildTo(this);
-    this.locateBlock(data[n].block);
+    // グリッド
+    this.gx = Grid(640, 10);
+    this.gy = Grid(960, 15);
+    // 背景色
+    this.backgroundColor = '#2e8b57';
+    // 静的オブジェクトグループ
+    this.staticGroup = DisplayElement().addChildTo(this);
     // 爆弾グループ    
     this.bombGroup = DisplayElement().addChildTo(this);
     // 爆発グループ
     this.explosionGroup = DisplayElement().addChildTo(this);
+    // ステージセット
+    this.setStage(0);
   },
-  // ブロック配置
-  locateBlock: function(location) {
+  // マップ作成
+  setStage: function(n) {
+    var half = GRID_SIZE / 2;
     var self = this;
-    
-    location.each(function(elem) {
-      // ブロック作成
-      var block = Block().addChildTo(self.blockGroup);
-      self.locateObject(block, elem[0], elem[1]);
+    // マップデータをループ
+    STAGE_DATA[n].each(function(arr, j) {
+      // 文字列を配列に変換
+      arr.toArray().each(function(id, i) {
+        var x = self.gx.span(i) + half;
+        var y = self.gy.span(j) + half;
+        // 数値に変換
+        id = parseInt(id);
+        // 壁
+        if (id === 1) {
+          var elem = Sprite('tile', GRID_SIZE, GRID_SIZE).addChildTo(self.staticGroup);
+          elem.setPosition(x, y);
+          // フレームインデックス指定
+          elem.frameIndex = id - 1;
+          // id設定
+          elem.id = id;
+          return;
+        }
+        // ブロック
+        if (id === 2) {
+          var block = Block().addChildTo(self.staticGroup).setPosition(x, y);
+          block.id = id;
+          return;
+        }
+        // プレイヤー作成・配置
+        if (id === 9) {
+          self.player = Player().addChildTo(self).setPosition(x, y);
+        }
+      });
     });
   },
-  //
+  // オブジェクト配置用メソッド
+  locateObject: function(obj, i, j) {
+    var half = GRID_SIZE / 2;
+    var x = i * GRID_SIZE + half;
+    var y = j * GRID_SIZE + half;
+    obj.setPosition(x, y);
+  },
+  // 爆発処理
   explode: function(dirX, dirY, x, y, rot) {
-    var map = this.map;
+    // 指定した位置にあるオブジェクトを得る
+    var obj = this.getObject(x, y);
     // 壁
-    if (map.checkTile(x, y) === 1) return;
+    if (obj && obj.id === 1) return;
     // ブロック
-    var block = this.getBlock(x, y);
-    if (block) {
-      block.disable();
+    if (obj && obj.id === 2) {
+      // 破壊エフェクト
+      obj.disable();
       return;
     }
-    // 爆弾
+    // 指定した位置にある爆弾を得る
     var bomb = this.getBomb(x, y);
+    // 爆弾があれば誘爆
     if (bomb) {
       bomb.flare('explode');
       return;
     }
     // 何もなし      
-    if (map.checkTile(x, y) === 0) {
+    if (!obj) {
       var explosion = Explosion('middle', rot).addChildTo(this.explosionGroup);
       explosion.setPosition(x, y);
-      var dx = x + dirX * UNIT;
-      var dy = y + dirY * UNIT;
+      var dx = x + dirX * GRID_SIZE;
+      var dy = y + dirY * GRID_SIZE;
+      // 同方向に１マス進めて再帰呼び出し
       this.explode(dirX, dirY, dx, dy, rot);
     }
-  },
-  // オブジェクト配置用メソッド
-  locateObject: function(obj, i, j) {
-    var x = i * UNIT + UNIT / 2;
-    var y = j * UNIT + UNIT / 2;
-    obj.setPosition(x, y);
   },
   // 毎フレーム処理  
   update: function(app) {
@@ -220,10 +227,7 @@ phina.define("MainScene", {
   // 移動チェック
   checkMove: function(app) {
     var player = this.player;
-    var map = this.map;
     var self = this;
-    // 移動中なら何もしない
-    if (player.moving) return;
       
     var key = app.keyboard;
     // 移動判定
@@ -231,49 +235,54 @@ phina.define("MainScene", {
       var e0 = elem[0];
       var e1 = elem[1];
       var e2 = elem[2];
-      var dx = e1 * UNIT;
-      var dy = e2 * UNIT;
+      var dx = e1 * player.speed;
+      var dy = e2 * player.speed;
       // キー入力チェック
       if (key.getKey(e0)) {
-        var px = player.x + dx;
-        var py = player.y + dy;
-        // 壁との当たり判定
-        if (map.hitTest(px, py)) return;
-        // ブロックとの当たり判定
-        if (self.getBlock(px, py)) return;
-        // 爆弾との当たり判定
-        if (self.getBomb(px, py)) return;
-        // 何もない場合
-          player.anim.gotoAndPlay(e0);
-          // プレイヤー移動
-          self.movePlayer(px, py);
+        // 次の移動先矩形
+        var rect = Rect(player.left + dx, player.top + dy, player.width, player.height);
+        // アニメーション変更
+        player.anim.gotoAndPlay(e0);
+        // オブジェクトとの当たり判定
+        if (self.hitTestRectStatic(rect)) return;
+        // プレイヤー移動
+        player.moveBy(dx, dy);
       }
     });
   },
-  // プレイヤーの移動処理
-  movePlayer: function(destX, destY) {
+  // オブジェクトとの当たり判定
+  hitTestRectStatic: function(rect) {
+    var result = false;
     var player = this.player;
-    player.moving = true;
     
-    player.tweener.clear()
-                  .to({x: destX, y: destY}, 200)
-                  .call(function() {
-                    player.moving = false;  
-                  }).play();
+    this.staticGroup.children.some(function(obj) {
+      //
+      if (Collision.testRectRect(rect, obj)) {
+        // 位置を補正してコーナーを曲がりやすくする
+        // 左右から上下
+        if (obj.y < player.y || obj.y > player.y) {
+          if (player.x < obj.left) player.x = obj.x - GRID_SIZE;
+          if (player.x > obj.right) player.x = obj.x + GRID_SIZE;
+        }
+        result = true;
+        return true;
+      }
+    });
+    return result;
   },
   // 爆弾設置
   setBomb: function(app) {
     var player = this.player;
-    // 移動中なら何もしない
-    if (player.moving) return;
-      
     var key = app.keyboard;
     var self = this;
     //
     if (key.getKeyUp('Z')) {
       var bomb = Bomb().addChildTo(this.bombGroup);
-      bomb.setPosition(player.x, player.y);
-      // explodeイベント
+      // 配置がズレないようにインデックス値に変換
+      var i = (player.x / GRID_SIZE) | 0;
+      var j = (player.y / GRID_SIZE) | 0;
+      this.locateObject(bomb, i, j);
+      // explodeイベント登録
       bomb.on('explode', function() {
         var x = bomb.x;
         var y = bomb.y;
@@ -286,21 +295,21 @@ phina.define("MainScene", {
           var dirX = elem[0];
           var dirY = elem[1];
           var rot = elem[2];
-          var dx = x + dirX * UNIT;
-          var dy = y + dirY * UNIT;
+          var dx = x + dirX * GRID_SIZE;
+          var dy = y + dirY * GRID_SIZE;
           //
           self.explode(dirX, dirY, dx, dy, rot);  
         });
       });
     }
   },
-  // 指定位置にブロックがあれば返す
-  getBlock: function(x, y) {
+  // 指定位置にオブジェクトがあれば返す
+  getObject: function(x, y) {
     var result = null;
     
-    this.blockGroup.children.some(function(block) {
-      if (block.x === x && block.y === y) {
-        result = block;
+    this.staticGroup.children.some(function(obj) {
+      if (obj.x === x && obj.y === y) {
+        result = obj;
         return true;
       }
     });
@@ -328,12 +337,38 @@ phina.define("Player", {
   // コンストラクタ
   init: function() {
     // 親クラス初期化
-    this.superInit('tomapiko', UNIT, UNIT);
-    this.moving = false;
+    this.superInit('tomapiko', GRID_SIZE, GRID_SIZE);
     // スプライトにフレームアニメーションをアタッチ
     this.anim = FrameAnimation('tomapiko_ss').attachTo(this);
+    this.anim.fit = false;
     // アニメーションを指定
     this.anim.gotoAndPlay('right');
+    //
+    this.speed = 8;
+  },
+});
+/*
+ * ブロッククラス
+ */
+phina.define("Block", {
+  // 継承
+  superClass: 'Sprite',
+  // コンストラクタ
+  init: function() {
+    // 親クラス初期化
+    this.superInit('tile', GRID_SIZE, GRID_SIZE);
+    // フレームインデックス指定
+    this.frameIndex = 1;
+  },
+  // 破壊エフェクト
+  disable: function() {
+    this.frameIndex = 2;
+    //
+    this.tweener.fadeOut(200)
+                .call(function() {
+                  this.remove();
+                }, this)
+                .play();
   },
 });
 /*
@@ -345,17 +380,18 @@ phina.define("Bomb", {
   // コンストラクタ
   init: function() {
     // 親クラス初期化
-    this.superInit('bombs', UNIT, UNIT);
+    this.superInit('bombs', GRID_SIZE, GRID_SIZE);
     // フレームアニメーション指定
     this.anim = FrameAnimation('bombs').attachTo(this);
     this.anim.gotoAndPlay('fire');
-    // 威力
+    // 爆発範囲
     this.power = 1;
-    //
+    // 3秒後に爆発
     this.tweener.wait(3000)
                 .call(function() {
                   this.flare('explode');
-                }, this);
+                }, this)
+                .play();
   },
 });
 /*
@@ -367,7 +403,7 @@ phina.define("Explosion", {
   // コンストラクタ
   init: function(type, angle) {
     // 親クラス初期化
-    this.superInit('explosions', UNIT, UNIT);
+    this.superInit('explosions', GRID_SIZE, GRID_SIZE);
     // フレームアニメーション指定
     this.anim = FrameAnimation('explosions').attachTo(this);
     // タイプ
@@ -381,31 +417,6 @@ phina.define("Explosion", {
     if (this.anim.finished) {
       this.remove();
     }
-  },
-});
-/*
- * ブロッククラス
- */
-phina.define("Block", {
-  // 継承
-  superClass: 'Sprite',
-  // コンストラクタ
-  init: function() {
-    // 親クラス初期化
-    this.superInit('tile', UNIT, UNIT);
-    //
-    this.frameIndex = 2;
-  },
-  // 破壊
-  disable: function() {
-    //
-    this.frameIndex = 3;
-    //
-    var self = this;
-    this.tweener.fadeOut(200)
-                .call(function() {
-                  self.remove();
-                }).play();
   },
 });
 /*
