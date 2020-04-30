@@ -25,18 +25,18 @@ var SPRITE_SHEET = {
         // アニメーション間隔
         "frequency": 4,
       },
-      "right": { 
-        "frames": [15,16,17], 
-        "next": "right", 
-        "frequency": 4, 
+      "right": {
+        "frames": [15,16,17],
+        "next": "right",
+        "frequency": 4,
       },
-      "up": { 
-        "frames": [9,10,11], 
-        "next": "up", 
-        "frequency": 4, 
+      "up": {
+        "frames": [9,10,11],
+        "next": "up",
+        "frequency": 4,
       },
-      "down": { 
-        "frames": [6,7,8], 
+      "down": {
+        "frames": [6,7,8],
         "next": "down",
         "frequency": 4,
       },
@@ -99,7 +99,10 @@ var ASSETS = {
 };
 // 定数
 var GRID_SIZE = 64;
+<<<<<<< HEAD
 var MOVE_SPAN = 16;
+=======
+>>>>>>> master
 // キー情報配列
 var KEY_ARR = [['left', -1, 0], ['right', 1, 0], ['up', 0, -1], ['down', 0, 1]];
 //  爆風方向配列
@@ -107,7 +110,11 @@ var EXPLODE_ARR = [[-1, 0, 90], [1, 0, 90], [0, -1, 0], [0, 1, 0]];
 // ステージデータ
 var STAGE_DATA = [
   // ステージ1
+<<<<<<< HEAD
   // 0:空白 1:壁 2:ブロック 9:プレイヤー
+=======
+  // 0:空白 1:壁 2:ブロック p:プレイヤー
+>>>>>>> master
   ['1111111111',
    '1902002001',
    '1010110101',
@@ -141,11 +148,19 @@ phina.define("MainScene", {
     this.backgroundColor = '#2e8b57';
     // 静的オブジェクトグループ
     this.staticGroup = DisplayElement().addChildTo(this);
+<<<<<<< HEAD
     // 爆弾グループ    
     this.bombGroup = DisplayElement().addChildTo(this);
     // 爆発グループ
     this.explosionGroup = DisplayElement().addChildTo(this);
     // ステージセット
+=======
+    // 爆弾グループ
+    this.bombGroup = DisplayElement().addChildTo(this);
+    // 爆発グループ
+    this.explosionGroup = DisplayElement().addChildTo(this);
+    //
+>>>>>>> master
     this.setStage(0);
   },
   // マップ作成
@@ -178,7 +193,13 @@ phina.define("MainScene", {
         }
         // プレイヤー作成・配置
         if (id === 9) {
+<<<<<<< HEAD
           self.player = Player().addChildTo(self).setPosition(x, y);
+        }
+      });
+=======
+          self.player = Player().addChildTo(self);
+          self.player.setPosition(x, y);
         }
       });
     });
@@ -190,15 +211,45 @@ phina.define("MainScene", {
     var y = j * GRID_SIZE + half;
     obj.setPosition(x, y);
   },
+  // 指定位置にあるオブジェクトを返す
+  getObject: function(x, y) {
+    var result = null;
+
+    this.staticGroup.children.some(function(obj) {
+      if (obj.x === x && obj.y === y) {
+        result = obj;
+        return true;
+      }
+>>>>>>> master
+    });
+    return result;
+  },
+<<<<<<< HEAD
+  // オブジェクト配置用メソッド
+  locateObject: function(obj, i, j) {
+    var half = GRID_SIZE / 2;
+    var x = i * GRID_SIZE + half;
+    var y = j * GRID_SIZE + half;
+    obj.setPosition(x, y);
+  },
   // 爆発処理
   explode: function(dirX, dirY, x, y, rot) {
     // 指定した位置にあるオブジェクトを得る
+=======
+  // 爆発処理
+  explode: function(dirX, dirY, x, y, rot) {
+    var map = this.map;
+
+>>>>>>> master
     var obj = this.getObject(x, y);
     // 壁
     if (obj && obj.id === 1) return;
     // ブロック
     if (obj && obj.id === 2) {
+<<<<<<< HEAD
       // 破壊エフェクト
+=======
+>>>>>>> master
       obj.disable();
       return;
     }
@@ -209,17 +260,29 @@ phina.define("MainScene", {
       bomb.flare('explode');
       return;
     }
+<<<<<<< HEAD
     // 何もなし      
+=======
+    // 何もなし
+>>>>>>> master
     if (!obj) {
       var explosion = Explosion('middle', rot).addChildTo(this.explosionGroup);
       explosion.setPosition(x, y);
       var dx = x + dirX * GRID_SIZE;
       var dy = y + dirY * GRID_SIZE;
+<<<<<<< HEAD
       // 同方向に１マス進めて再帰呼び出し
       this.explode(dirX, dirY, dx, dy, rot);
     }
   },
   // 毎フレーム処理  
+=======
+      // 再帰呼び出し
+      this.explode(dirX, dirY, dx, dy, rot);
+    }
+  },
+  // 毎フレーム処理
+>>>>>>> master
   update: function(app) {
     this.checkMove(app);
     this.setBomb(app);
@@ -228,13 +291,20 @@ phina.define("MainScene", {
   checkMove: function(app) {
     var player = this.player;
     var self = this;
+<<<<<<< HEAD
       
+=======
+    // 移動中なら何もしない
+    if (player.moving) return;
+
+>>>>>>> master
     var key = app.keyboard;
     // 移動判定
     KEY_ARR.each(function(elem) {
       var e0 = elem[0];
       var e1 = elem[1];
       var e2 = elem[2];
+<<<<<<< HEAD
       var dx = e1 * player.speed;
       var dy = e2 * player.speed;
       // キー入力チェック
@@ -270,6 +340,16 @@ phina.define("MainScene", {
     });
     return result;
   },
+=======
+      // キー入力チェック
+      if (key.getKey(e0)) {
+        player.x += e1 * player.speed;
+        player.y += e2 * player.speed;
+        player.anim.gotoAndPlay(e0);
+      }
+    });
+  },
+>>>>>>> master
   // 爆弾設置
   setBomb: function(app) {
     var player = this.player;
@@ -298,7 +378,7 @@ phina.define("MainScene", {
           var dx = x + dirX * GRID_SIZE;
           var dy = y + dirY * GRID_SIZE;
           //
-          self.explode(dirX, dirY, dx, dy, rot);  
+          self.explode(dirX, dirY, dx, dy, rot);
         });
       });
     }
@@ -306,10 +386,17 @@ phina.define("MainScene", {
   // 指定位置にオブジェクトがあれば返す
   getObject: function(x, y) {
     var result = null;
+<<<<<<< HEAD
     
     this.staticGroup.children.some(function(obj) {
       if (obj.x === x && obj.y === y) {
         result = obj;
+=======
+
+    this.blockGroup.children.some(function(block) {
+      if (block.x === x && block.y === y) {
+        result = block;
+>>>>>>> master
         return true;
       }
     });
@@ -318,7 +405,7 @@ phina.define("MainScene", {
   // 指定位置に爆弾があれば返す
   getBomb: function(x, y) {
     var result = null;
-    
+
     this.bombGroup.children.some(function(bomb) {
       if (bomb.x === x && bomb.y === y) {
         result = bomb;
@@ -343,8 +430,13 @@ phina.define("Player", {
     this.anim.fit = false;
     // アニメーションを指定
     this.anim.gotoAndPlay('right');
+<<<<<<< HEAD
     //
     this.speed = 8;
+=======
+    // 移動速度
+    this.speed = 4;
+>>>>>>> master
   },
 });
 /*
@@ -360,6 +452,7 @@ phina.define("Block", {
     // フレームインデックス指定
     this.frameIndex = 1;
   },
+<<<<<<< HEAD
   // 破壊エフェクト
   disable: function() {
     this.frameIndex = 2;
@@ -369,6 +462,18 @@ phina.define("Block", {
                   this.remove();
                 }, this)
                 .play();
+=======
+  // 破壊
+  disable: function() {
+    //
+    this.frameIndex = 2;
+    //
+    var self = this;
+    this.tweener.fadeOut(200)
+                .call(function() {
+                  self.remove();
+                }).play();
+>>>>>>> master
   },
 });
 /*
