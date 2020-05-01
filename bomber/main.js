@@ -99,11 +99,10 @@ var ASSETS = {
 };
 // 定数
 var GRID_SIZE = 64;
-var MOVE_SPAN = 16;
-// キー情報配列
+// キー方向配列
 var KEY_ARR = [['left', -1, 0], ['right', 1, 0], ['up', 0, -1], ['down', 0, 1]];
-//  爆風方向配列
-var EXPLODE_ARR = [[-1, 0, 90], [1, 0, 90], [0, -1, 0], [0, 1, 0]];
+// 爆風方向配列
+var EXPLODE_ARR = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 // ステージデータ
 var STAGE_DATA = [
   // ステージ1
@@ -139,7 +138,7 @@ phina.define("MainScene", {
     this.gy = Grid(960, 15);
     // 背景色
     this.backgroundColor = '#2e8b57';
-    // 静的オブジェクトグループ
+    // オブジェクトグループ
     this.staticGroup = DisplayElement().addChildTo(this);
     // 爆弾グループ    
     this.bombGroup = DisplayElement().addChildTo(this);
@@ -162,8 +161,8 @@ phina.define("MainScene", {
         id = parseInt(id);
         // 壁
         if (id === 1) {
-          var elem = Sprite('tile', GRID_SIZE, GRID_SIZE).addChildTo(self.staticGroup);
-          elem.setPosition(x, y);
+          var elem = Sprite('tile', GRID_SIZE, GRID_SIZE);
+          elem.addChildTo(self.staticGroup).setPosition(x, y);
           // フレームインデックス指定
           elem.frameIndex = id - 1;
           // id設定
@@ -190,35 +189,6 @@ phina.define("MainScene", {
     var y = j * GRID_SIZE + half;
     obj.setPosition(x, y);
   },
-  // 爆発処理
-  explode: function(dirX, dirY, x, y, rot) {
-    // 指定した位置にあるオブジェクトを得る
-    var obj = this.getObject(x, y);
-    // 壁
-    if (obj && obj.id === 1) return;
-    // ブロック
-    if (obj && obj.id === 2) {
-      // 破壊エフェクト
-      obj.disable();
-      return;
-    }
-    // 指定した位置にある爆弾を得る
-    var bomb = this.getBomb(x, y);
-    // 爆弾があれば誘爆
-    if (bomb) {
-      bomb.flare('explode');
-      return;
-    }
-    // 何もなし      
-    if (!obj) {
-      var explosion = Explosion('middle', rot).addChildTo(this.explosionGroup);
-      explosion.setPosition(x, y);
-      var dx = x + dirX * GRID_SIZE;
-      var dy = y + dirY * GRID_SIZE;
-      // 同方向に１マス進めて再帰呼び出し
-      this.explode(dirX, dirY, dx, dy, rot);
-    }
-  },
   // 毎フレーム処理  
   update: function(app) {
     this.checkMove(app);
@@ -240,7 +210,9 @@ phina.define("MainScene", {
       // キー入力チェック
       if (key.getKey(e0)) {
         // 次の移動先矩形
-        var rect = Rect(player.left + dx, player.top + dy, player.width, player.height);
+        var rx = player.left + dx;
+        var ry = player.top + dy;
+        var rect = Rect(rx, ry, player.width, player.height);
         // アニメーション変更
         player.anim.gotoAndPlay(e0);
         // オブジェクトとの当たり判定
@@ -256,13 +228,18 @@ phina.define("MainScene", {
     var player = this.player;
     
     this.staticGroup.children.some(function(obj) {
-      //
+      // 当たり判定がある場合
       if (Collision.testRectRect(rect, obj)) {
-        // 位置を補正してコーナーを曲がりやすくする
+        // 位置を補正してコーナーで移動しやすくする
         // 左右から上下
         if (obj.y < player.y || obj.y > player.y) {
           if (player.x < obj.left) player.x = obj.x - GRID_SIZE;
           if (player.x > obj.right) player.x = obj.x + GRID_SIZE;
+        }
+        // 上下から左右
+        if (obj.x < player.x || obj.x > player.x) {
+          if (player.y < obj.top) player.y = obj.y - GRID_SIZE;
+          if (player.y > obj.bottom) player.y = obj.y + GRID_SIZE;
         }
         result = true;
         return true;
@@ -286,21 +263,69 @@ phina.define("MainScene", {
       bomb.on('explode', function() {
         var x = bomb.x;
         var y = bomb.y;
+        var power = bomb.power;
         bomb.remove();
-        // 爆発の中心
-        var explosion = Explosion('center', 0).addChildTo(self.explosionGroup);
-        explosion.setPosition(x, y);
-        // 四方爆風処理
+        //
+        var exolodeCount = 1;
+        // 爆発の回転方向
+        var rot = 0;
+        // 中心の爆発
+        var explosion = Explosion('center', rot);
+        explosion.addChildTo(self.explosionGroup).setPosition(x, y);
+        // 四方向ループ
         EXPLODE_ARR.each(function(elem) {
           var dirX = elem[0];
           var dirY = elem[1];
-          var rot = elem[2];
+          // １ブロック先の位置
           var dx = x + dirX * GRID_SIZE;
           var dy = y + dirY * GRID_SIZE;
-          //
-          self.explode(dirX, dirY, dx, dy, rot);  
+          // 爆発の回転方向セット
+          if (dirX === 1) rot = 90;
+          if (dirX === -1) rot = 270;
+          if (dirY === 1) rot = 180;
+          if (dirY === -1) rot = 0
+          // 爆発処理
+          self.explode(dirX, dirY, dx, dy, rot, power, exolodeCount);  
         });
       });
+    }
+  },
+  // 爆発処理
+  explode: function(dirX, dirY, x, y, rot, power, exolodeCount) {
+    // 指定した位置にあるオブジェクトを得る
+    var obj = this.getObject(x, y);
+    // 壁
+    if (obj && obj.id === 1) return;
+    // ブロック
+    if (obj && obj.id === 2) {
+      // 破壊エフェクト
+      obj.disable();
+      return;
+    }
+    // 指定した位置にある爆弾を得る
+    var bomb = this.getBomb(x, y);
+    // 爆弾があれば誘爆
+    if (bomb) {
+      bomb.flare('explode');
+      return;
+    }
+    // 何もなし      
+    if (!obj) {
+      // 爆発の端
+      if (power === exolodeCount) {
+        var edge = Explosion('edge', rot).addChildTo(this.explosionGroup);
+        edge.setPosition(x, y);
+        return;
+      }
+      // カウントアップ
+      exolodeCount++;
+      // 途中の爆発
+      var middle = Explosion('middle', rot).addChildTo(this.explosionGroup);
+      middle.setPosition(x, y);
+      var dx = x + dirX * GRID_SIZE;
+      var dy = y + dirY * GRID_SIZE;
+      // 同方向に１マス進めて再帰呼び出し
+      this.explode(dirX, dirY, dx, dy, rot, power, exolodeCount);
     }
   },
   // 指定位置にオブジェクトがあれば返す
@@ -343,7 +368,7 @@ phina.define("Player", {
     this.anim.fit = false;
     // アニメーションを指定
     this.anim.gotoAndPlay('right');
-    //
+    // 移動速度
     this.speed = 8;
   },
 });
@@ -363,12 +388,11 @@ phina.define("Block", {
   // 破壊エフェクト
   disable: function() {
     this.frameIndex = 2;
-    //
+    // フェードアウトして削除
     this.tweener.fadeOut(200)
                 .call(function() {
                   this.remove();
-                }, this)
-                .play();
+                }, this).play();
   },
 });
 /*
@@ -390,8 +414,7 @@ phina.define("Bomb", {
     this.tweener.wait(3000)
                 .call(function() {
                   this.flare('explode');
-                }, this)
-                .play();
+                }, this).play();
   },
 });
 /*
@@ -406,7 +429,7 @@ phina.define("Explosion", {
     this.superInit('explosions', GRID_SIZE, GRID_SIZE);
     // フレームアニメーション指定
     this.anim = FrameAnimation('explosions').attachTo(this);
-    // タイプ
+    // アニメーションタイプ
     this.anim.gotoAndPlay(type);
     // 角度
     this.rotation = angle;
