@@ -99,6 +99,7 @@ var ASSETS = {
 };
 // 定数
 var GRID_SIZE = 64;
+var GRID_HALF = GRID_SIZE / 2;
 // キー方向配列
 var KEY_ARR = [['left', -1, 0], ['right', 1, 0], ['up', 0, -1], ['down', 0, 1]];
 // 爆風方向配列
@@ -149,14 +150,13 @@ phina.define("MainScene", {
   },
   // マップ作成
   setStage: function(n) {
-    var half = GRID_SIZE / 2;
     var self = this;
     // マップデータをループ
     STAGE_DATA[n].each(function(arr, j) {
       // 文字列を配列に変換
       arr.toArray().each(function(id, i) {
-        var x = self.gx.span(i) + half;
-        var y = self.gy.span(j) + half;
+        var x = self.gx.span(i) + GRID_HALF;
+        var y = self.gy.span(j) + GRID_HALF;
         // 数値に変換
         id = parseInt(id);
         // 壁
@@ -184,9 +184,8 @@ phina.define("MainScene", {
   },
   // オブジェクト配置用メソッド
   locateObject: function(obj, i, j) {
-    var half = GRID_SIZE / 2;
-    var x = i * GRID_SIZE + half;
-    var y = j * GRID_SIZE + half;
+    var x = i * GRID_SIZE + GRID_HALF;
+    var y = j * GRID_SIZE + GRID_HALF;
     obj.setPosition(x, y);
   },
   // 毎フレーム処理  
@@ -209,6 +208,10 @@ phina.define("MainScene", {
       var dy = e2 * player.speed;
       // キー入力チェック
       if (key.getKey(e0)) {
+        var x = key.getKeyDirection().x;
+        var y = key.getKeyDirection().y;
+        // キー同時入力対策
+        if (Math.abs(x * y) !== 0) return;
         // 次の移動先矩形
         var rx = player.left + dx;
         var ry = player.top + dy;
@@ -279,7 +282,7 @@ phina.define("MainScene", {
           // １ブロック先の位置
           var dx = x + dirX * GRID_SIZE;
           var dy = y + dirY * GRID_SIZE;
-          // 爆発の回転方向セット
+          // 爆発のグラフィック回転方向セット
           if (dirX === 1) rot = 90;
           if (dirX === -1) rot = 270;
           if (dirY === 1) rot = 180;
@@ -365,11 +368,10 @@ phina.define("Player", {
     this.superInit('tomapiko', GRID_SIZE, GRID_SIZE);
     // スプライトにフレームアニメーションをアタッチ
     this.anim = FrameAnimation('tomapiko_ss').attachTo(this);
-    this.anim.fit = false;
     // アニメーションを指定
-    this.anim.gotoAndPlay('right');
+    this.anim.gotoAndStop('right');
     // 移動速度
-    this.speed = 8;
+    this.speed = 4;
   },
 });
 /*
