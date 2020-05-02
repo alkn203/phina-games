@@ -206,18 +206,26 @@ phina.define("MainScene", {
       var e2 = elem[2];
       var dx = e1 * player.speed;
       var dy = e2 * player.speed;
+      // キーが離れたらアニメーションストップ
+      if (key.getKeyUp(e0)) {
+        player.anim.gotoAndStop(player.anim.currentAnimationName);
+        return;
+      }
       // キー入力チェック
       if (key.getKey(e0)) {
+        // アニメーション変更
+        player.anim.gotoAndPlay(e0);
+        // キー同時入力対策
         var x = key.getKeyDirection().x;
         var y = key.getKeyDirection().y;
-        // キー同時入力対策
         if (Math.abs(x * y) !== 0) return;
+        // 爆弾との当たり判定
+        var bomb = self.getBomb(player.x + e1 * GRID_SIZE, player.y + e2 * GRID_SIZE);
+        if (bomb) return;
         // 次の移動先矩形
         var rx = player.left + dx;
         var ry = player.top + dy;
         var rect = Rect(rx, ry, player.width, player.height);
-        // アニメーション変更
-        player.anim.gotoAndPlay(e0);
         // オブジェクトとの当たり判定
         if (self.hitTestRectStatic(rect)) return;
         // プレイヤー移動
