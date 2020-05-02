@@ -40,6 +40,10 @@ var SPRITE_SHEET = {
         "next": "down",
         "frequency": 4,
       },
+      "defeat": { 
+        "frames": [4,5], 
+        "frequency": 8,
+      },
     }
   },
   // 爆弾
@@ -190,8 +194,15 @@ phina.define("MainScene", {
   },
   // 毎フレーム処理  
   update: function(app) {
+    //
+    if (this.player.defeated) return;    
+
     this.checkMove(app);
     this.setBomb(app);
+    //
+    if (this.hitTestPlayerExplosion()) {
+      this.player.flare('defeat');  
+    }
   },
   // 移動チェック
   checkMove: function(app) {
@@ -233,7 +244,7 @@ phina.define("MainScene", {
       }
     });
   },
-  // オブジェクトとの当たり判定
+  // プレイヤーとオブジェクトとの当たり判定
   hitTestRectStatic: function(rect) {
     var result = false;
     var player = this.player;
@@ -252,6 +263,20 @@ phina.define("MainScene", {
           if (player.y < obj.top) player.y = obj.y - GRID_SIZE;
           if (player.y > obj.bottom) player.y = obj.y + GRID_SIZE;
         }
+        result = true;
+        return true;
+      }
+    });
+    return result;
+  },
+  // プレイヤーと爆発との当たり判定
+  hitTestPlayerExplosion: function() {
+    var player = this.player;
+    var result = false;
+    
+    this.explosionGroup.children.some(function(explosion) {
+      // 当たり判定がある場合
+      if (player.hitTestElement(explosion)) {
         result = true;
         return true;
       }
@@ -380,6 +405,13 @@ phina.define("Player", {
     this.anim.gotoAndStop('right');
     // 移動速度
     this.speed = 4;
+    //
+    this.defeated = false;
+    // 敗北イベント
+    this.one('defeat', function() {
+      this.defeated = true;
+      this.anim.gotoAndPlay('defeat');
+    }, this);
   },
 });
 /*
