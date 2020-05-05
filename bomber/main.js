@@ -97,6 +97,8 @@ var ASSETS = {
     'bombs': 'https://cdn.jsdelivr.net/gh/alkn203/phina-games@master/bomber/assets/bombs.png',
     'explosions': 'https://cdn.jsdelivr.net/gh/alkn203/phina-games@master/bomber/assets/explosions.png',
     'tomapiko': 'https://cdn.jsdelivr.net/gh/phinajs/phina.js@develop/assets/images/tomapiko_ss.png',
+    'enemy1': 'https://cdn.jsdelivr.net/gh/alkn203/phina-games@master/bomber/assets/enemy1.png',
+    'enemy2': 'https://cdn.jsdelivr.net/gh/alkn203/phina-games@master/bomber/assets/enemy2.png',
   },
   // スプライトシート
   spritesheet: SPRITE_SHEET
@@ -117,7 +119,7 @@ var STAGE_DATA = [
    '1010110101',
    '1202002021',
    '1010110101',
-   '1002002001',
+   '1002002081',
    '1010110101',
    '1202002021',
    '1010110101',
@@ -149,6 +151,8 @@ phina.define("MainScene", {
     this.bombGroup = DisplayElement().addChildTo(this);
     // 爆発グループ
     this.explosionGroup = DisplayElement().addChildTo(this);
+    // 敵グループ
+    this.enemyGroup = DisplayElement().addChildTo(this);
     // ステージセット
     this.setStage(0);
   },
@@ -183,6 +187,10 @@ phina.define("MainScene", {
         if (id === 9) {
           self.player = Player().addChildTo(self).setPosition(x, y);
         }
+        // 敵１作成・配置
+        if (id === 8) {
+          var enemy1 = Enemy1().addChildTo(self.enemyGroup).setPosition(x, y);
+        }
       });
     });
   },
@@ -195,12 +203,15 @@ phina.define("MainScene", {
   // 毎フレーム処理  
   update: function(app) {
     //
+    this.hitTestEnemy1Static();
+    //
     if (this.player.defeated) return;    
 
     this.checkMove(app);
     this.setBomb(app);
-    //
+    // プレイヤーが爆発に当たったら
     if (this.hitTestPlayerExplosion()) {
+      // イベント発火
       this.player.flare('defeat');  
     }
   },
@@ -364,6 +375,23 @@ phina.define("MainScene", {
       this.explode(dirX, dirY, dx, dy, rot, power, exolodeCount);
     }
   },
+  // 敵１とオブジェクトとの当たり判定
+  hitTestEnemy1Static: function() {
+    var self = this;
+    
+    this.enemyGroup.children.each(function(enemy) {
+      self.staticGroup.children.each(function(obj) {
+        // 次の移動先矩形
+        var rx = enemy.left + enemy.vx;
+        var rect = Rect(rx, enemy.top, enemy.width, enemy.height);
+        // 当たり判定がある場合
+        if (Collision.testRectRect(enemy, obj)) {
+          // 速度反転
+          enemy.vx *= -1
+        }
+      });
+    });
+  },
   // 指定位置にオブジェクトがあれば返す
   getObject: function(x, y) {
     var result = null;
@@ -407,11 +435,38 @@ phina.define("Player", {
     this.speed = 4;
     //
     this.defeated = false;
-    // 敗北イベント
+    // やられイベント
     this.one('defeat', function() {
       this.defeated = true;
       this.anim.gotoAndPlay('defeat');
     }, this);
+  },
+});
+/*
+ * 敵1クラス
+ */
+phina.define("Enemy1", {
+  // 継承
+  superClass: 'Sprite',
+  // コンストラクタ
+  init: function() {
+    // 親クラス初期化
+    this.superInit('enemy1', GRID_SIZE, GRID_SIZE);
+    // 移動速度
+    this.vx = -2;
+    //
+    this.defeated = false;
+    // やられイベント
+    this.one('defeat', function() {
+      this.defeated = true;
+    }, this);
+  },
+  //
+  update: function() {
+    //
+    this.moveBy(this.vx, 0);
+    //
+    this.frameIndex = this.vx < 0 ? 0 : 1;
   },
 });
 /*
