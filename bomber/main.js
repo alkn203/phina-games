@@ -115,7 +115,7 @@ var STAGE_DATA = [
   // ステージ1
   // 0:空白 1:壁 2:ブロック 9:プレイヤー
   ['1111111111',
-   '1902002001',
+   '1902082001',
    '1010110101',
    '1202002021',
    '1010110101',
@@ -205,6 +205,8 @@ phina.define("MainScene", {
     //
     this.hitTestEnemy1Static();
     //
+    this.hitTestEnemyExplosion();
+    //
     if (this.player.defeated) return;    
 
     this.checkMove(app);
@@ -249,14 +251,14 @@ phina.define("MainScene", {
         var ry = player.top + dy;
         var rect = Rect(rx, ry, player.width, player.height);
         // オブジェクトとの当たり判定
-        if (self.hitTestRectStatic(rect)) return;
+        if (self.hitTestPlayerStatic(rect)) return;
         // プレイヤー移動
         player.moveBy(dx, dy);
       }
     });
   },
-  // プレイヤーとオブジェクトとの当たり判定
-  hitTestRectStatic: function(rect) {
+  // プレイヤーの矩形とオブジェクトとの当たり判定
+  hitTestPlayerStatic: function(rect) {
     var result = false;
     var player = this.player;
     
@@ -388,6 +390,19 @@ phina.define("MainScene", {
         if (Collision.testRectRect(enemy, obj)) {
           // 速度反転
           enemy.vx *= -1
+        }
+      });
+    });
+  },
+  // 敵と爆発との当たり判定
+  hitTestEnemyExplosion: function() {
+    var self = this;
+    
+    this.enemyGroup.children.each(function(enemy) {
+      self.explosionGroup.children.each(function(explosion) {
+        // 当たり判定がある場合
+        if (enemy.hitTestElement(explosion)) {
+          enemy.remove();  
         }
       });
     });
