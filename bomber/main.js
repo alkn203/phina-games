@@ -400,9 +400,10 @@ phina.define("MainScene", {
     
     this.enemyGroup.children.each(function(enemy) {
       self.explosionGroup.children.each(function(explosion) {
-        // 当たり判定がある場合
-        if (enemy.hitTestElement(explosion)) {
-          enemy.remove();  
+        // まだやられてなく当たり判定がある場合
+        if (!enemy.defeated && enemy.hitTestElement(explosion)) {
+            // やられイベント発火
+            enemy.flare('defeat');  
         }
       });
     });
@@ -474,13 +475,21 @@ phina.define("Enemy1", {
     // やられイベント
     this.one('defeat', function() {
       this.defeated = true;
+      // アニメーション
+      this.tweener.clear()
+                  .set({frameIndex: 2})
+                  .wait(1500)
+                  .call(function() {
+                    this.remove();
+                  }, this);
     }, this);
   },
   //
   update: function() {
-    //
+    if (this.defeated) return;
+    // 移動
     this.moveBy(this.vx, 0);
-    //
+    // 目の向き判定
     this.frameIndex = this.vx < 0 ? 0 : 1;
   },
 });
