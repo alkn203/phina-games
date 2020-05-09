@@ -202,17 +202,17 @@ phina.define("MainScene", {
   },
   // 毎フレーム処理  
   update: function(app) {
-    //
+    // 敵の当たり判定関係処理
     this.hitTestEnemy1Static();
-    //
+    this.hitTestEnemy1Bomb();
     this.hitTestEnemyExplosion();
     //
     if (this.player.defeated) return;    
-
+    // プレイヤー関係処理
     this.checkMove(app);
     this.setBomb(app);
-    // プレイヤーが爆発に当たったら
-    if (this.hitTestPlayerExplosion()) {
+    // プレイヤーがやられたら
+    if (this.hitTestPlayerEnemy() || this.hitTestPlayerExplosion()) {
       // イベント発火
       this.player.flare('defeat');  
     }
@@ -276,6 +276,20 @@ phina.define("MainScene", {
           if (player.y < obj.top) player.y = obj.y - GRID_SIZE;
           if (player.y > obj.bottom) player.y = obj.y + GRID_SIZE;
         }
+        result = true;
+        return true;
+      }
+    });
+    return result;
+  },
+  // プレイヤーと敵との当たり判定
+  hitTestPlayerEnemy: function() {
+    var player = this.player;
+    var result = false;
+    
+    this.enemyGroup.children.some(function(enemy) {
+      // 当たり判定がある場合
+      if (!enemy.defeated && player.hitTestElement(enemy)) {
         result = true;
         return true;
       }
@@ -388,6 +402,23 @@ phina.define("MainScene", {
         var rect = Rect(rx, enemy.top, enemy.width, enemy.height);
         // 当たり判定がある場合
         if (Collision.testRectRect(enemy, obj)) {
+          // 速度反転
+          enemy.vx *= -1
+        }
+      });
+    });
+  },
+  // 敵１と爆弾との当たり判定
+  hitTestEnemy1Bomb: function() {
+    var self = this;
+    
+    this.enemyGroup.children.each(function(enemy) {
+      self.bombGroup.children.each(function(bomb) {
+        // 次の移動先矩形
+        var rx = enemy.left + enemy.vx;
+        var rect = Rect(rx, enemy.top, enemy.width, enemy.height);
+        // 当たり判定がある場合
+        if (Collision.testRectRect(enemy, bomb)) {
           // 速度反転
           enemy.vx *= -1
         }
