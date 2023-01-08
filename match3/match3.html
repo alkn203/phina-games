@@ -36,13 +36,12 @@ var ASSETS = {
   },
 };
 // 定数
-var SCREEN_WIDTH = 640; // 画面横サイズ
-var SCREEN_HEIGHT = 640; // 画面縦サイズ
-var GEM_SIZE = SCREEN_WIDTH / 8;  // ジェムのサイズ
-var GEM_NUM_X = 8;              // 縦横のジェム数
-var GEM_NUM_Y = GEM_NUM_X * 2; // 縦のジェム数
-var GEM_OFFSET = GEM_SIZE / 2; // オフセット値
-var COLOR = ["red", "yellow", "blue", "lime", "purple", "aqua", "fuchsia"];
+var SCREEN_WIDTH = 640;
+var SCREEN_HEIGHT = 640;
+var GEM_SIZE = SCREEN_WIDTH / 8;
+var GEM_NUM_X = 8;
+var GEM_NUM_Y = GEM_NUM_X * 2;
+var GEM_OFFSET = GEM_SIZE / 2;
 // メインシーン
 phina.define('MainScene', {
   superClass: 'DisplayScene',
@@ -54,7 +53,7 @@ phina.define('MainScene', {
       height: SCREEN_HEIGHT,
     });
     // 背景色
-    this.backgroundColor = 'gray';
+    this.backgroundColor = 'balck'; 
     // グリッド
     var grid = Grid(SCREEN_WIDTH, GEM_NUM_X);
     // グループ
@@ -109,7 +108,7 @@ phina.define('MainScene', {
       GEM_NUM_X.times(function(spanY) {
         var gem = Gem().addChildTo(self.gemGroup);
         gem.num = Random.randint(0, 6);
-        gem.fill = COLOR[gem.num];
+        gem.frameIndex = gem.num; 
         gem.mark = "normal";
         gem.x = self.grid.span(spanX) + GEM_OFFSET;
         // 一画面文分上にずらす
@@ -136,7 +135,7 @@ phina.define('MainScene', {
       cursor2.setPosition(gem.x, gem.y);
       this.pair.push(gem);
       // 入れ替え処理
-      this.swapGems(false);
+      this.swapGem(false);
     }
   },
   // 隣り合わせ以外を選択不可にする
@@ -151,16 +150,16 @@ phina.define('MainScene', {
       var dx = Math.abs(gem.x - target.x);
       var dy = Math.abs(gem.y - target.y);
       // 上下左右隣り合わせだけを選択可に
-      if (gem.x === target.x && dy === GRID_SIZE) {
+      if (gem.x === target.x && dy === GEM_SIZE) {
         target.setInteractive(true);
       }
-      if (gem.y === target.y && dx === GRID_SIZE) {
+      if (gem.y === target.y && dx === GEM_SIZE) {
         target.setInteractive(true);
       }
     });
   },
   // ジェム入れ替え処理
-  swapGems: function(second) {
+  swapGem: function(second) {
     var g1 = this.pair[0];
     var g2 = this.pair[1];
     var self = this;
@@ -174,15 +173,15 @@ phina.define('MainScene', {
     
     var flow1 = Flow(function(resolve) {
       // 入れ替えアニメーション
-      g1.tweener.updateType = 'fps';
-      g1.tweener.to({x: g2.x, y: g2.y}, 10)
+      g1.tweener.updateType = 'normal';
+      g1.tweener.to({x: g2.x, y: g2.y}, 200)
         .call(function() {
           resolve();
         }).play();
     });
     var flow2 = Flow(function(resolve) {
-      g2.tweener.updateType = 'fps';
-      g2.tweener.to({x: g1.x, y: g1.y}, 10)
+      g2.tweener.updateType = 'normal';
+      g2.tweener.to({x: g1.x, y: g1.y}, 200)
         .call(function() {
           resolve();
         }).play();
@@ -204,7 +203,7 @@ phina.define('MainScene', {
         }
         else {
           // 戻りの入れ替え
-          self.swapGems(true);
+          self.swapGem(true);
         }
       }
     });
@@ -327,7 +326,7 @@ phina.define('MainScene', {
         // 落下アニメーション
         var flow = Flow(function(resolve) {
           gem.tweener.updateType = 'normal';
-          gem.tweener.by({y: gem.dropCnt * GRID_SIZE}, gem.dropCnt * 500)
+          gem.tweener.by({y: gem.dropCnt * GEM_SIZE}, gem.dropCnt * 500)
                      .call(function() {
                         gem.dropCnt = 0;
                         resolve('dropped');
@@ -402,10 +401,10 @@ phina.define('Cursor', {
     init: function() {
       // 親クラス初期化
       this.superInit({
-        width: GRID_SIZE,
-        height: GRID_SIZE,
+        width: GEM_SIZE,
+        height: GEM_SIZE,
         fill: null,
-        stroke: 'black',
+        stroke: 'red',
       });
     },
 });
